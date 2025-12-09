@@ -1,0 +1,17 @@
+{
+  "name": "agentic_trust_backend",
+  "version": "1.0.0",
+  "description": "Agentic trust playground backend with Couchbase, AI providers, and Vault Transit ready stubs.",
+  "main": "app.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node app.js"
+  },
+  "dependencies": {
+    "couchbase": "*",
+    "dotenv": "*",
+    "express": "*",
+    "node-fetch": "*",
+    "uuid": "*"
+  }
+}
