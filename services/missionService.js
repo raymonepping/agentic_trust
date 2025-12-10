@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
-import { getCollection, getScope } from "./db/couchbaseClient.js";
+import { getCollection, getScope, } from "./db/couchbaseClient.js";
 import { encryptText, decryptText } from "./vault/transit.js";
+
 
 export async function createMission({ title, body, owner, tags = [] }) {
   const collection = await getCollection();

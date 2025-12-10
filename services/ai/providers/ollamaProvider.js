@@ -13,7 +13,7 @@ export async function ollamaChat({ system, messages }) {
     stream: false,
   };
 
-  const res = await fetch(`${OLLAMA_URL}/v1/chat/completions`, {
+  const res = await fetch(`${OLLAMA_URL}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -25,6 +25,8 @@ export async function ollamaChat({ system, messages }) {
   }
 
   const data = await res.json();
-  const answer = data.choices?.[0]?.message?.content ?? "";
+
+  // Ollama returns a single message object for non-streaming chat
+  const answer = data.message?.content ?? "";
   return answer;
 }

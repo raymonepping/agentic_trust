@@ -13,7 +13,7 @@ export async function huggingFaceChat({ system, messages }) {
 
   const userContent = messages
     .map(m => `${m.role.toUpperCase()}: ${m.content}`)
-    .join("\n\n`);
+    .join("\n\n");
 
   const prompt = [
     system ? `SYSTEM: ${system}` : "",

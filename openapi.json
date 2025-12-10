@@ -1,0 +1,120 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Agentic Trust Backend",
+    "version": "1.0.0",
+    "description": "Backend for agentic trust playground: missions, AI QnA, Vault Transit and dynamic Couchbase creds."
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health check",
+        "responses": {
+          "200": {
+            "description": "Service is healthy"
+          }
+        }
+      }
+    },
+    "/missions": {
+      "get": {
+        "summary": "List missions",
+        "responses": {
+          "200": {
+            "description": "List of missions"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a mission",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": { "type": "string" },
+                  "body": { "type": "string" },
+                  "owner": { "type": "string" },
+                  "tags": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  }
+                },
+                "required": ["title", "body"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Mission created"
+          },
+          "400": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
+    "/missions/{id}": {
+      "get": {
+        "summary": "Get mission by id",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Mission details"
+          },
+          "404": {
+            "description": "Mission not found"
+          }
+        }
+      }
+    },
+    "/ai/mission/{id}": {
+      "post": {
+        "summary": "Ask a question about a mission",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "question": { "type": "string" }
+                },
+                "required": ["question"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Answer from AI"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "404": {
+            "description": "Mission not found"
+          }
+        }
+      }
+    }
+  }
+}
