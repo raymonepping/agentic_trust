@@ -23,10 +23,19 @@ import {
   pingCouchbase,
   closeCouchbase,
   startCouchbaseRotation,
+  getLastPingOkAt,
 } from "./services/db/couchbaseClient.js";
 
 // Load environment variables from .env file
 dotenv.config({ quiet: true });
+
+// Grace window for health checks
+const HEALTH_GRACE_TTL_SECONDS = Number(
+  process.env.HEALTH_GRACE_TTL_SECONDS ?? 30
+);
+const HEALTH_GRACE_LASTOK_SECONDS = Number(
+  process.env.HEALTH_GRACE_LASTOK_SECONDS ?? 120
+);
 
 // Helper to format TTL in human-readable HH:MM:SS
 function formatTTL(seconds) {
@@ -103,7 +112,29 @@ app.get("/health", async (req, res) => {
     ? Math.max(0, Math.floor((expiry.getTime() - Date.now()) / 1000))
     : null;
 
-  const ok = dbOk;
+  let ok = dbOk;
+  let graceApplied = false;
+  let secondsSinceLastOk = null;
+
+  const lastOk = getLastPingOkAt();
+  if (lastOk) {
+    secondsSinceLastOk = Math.floor((Date.now() - lastOk.getTime()) / 1000);
+  }
+
+  // Grace rule:
+  // If DB just rotated and TTL is low, and we had a recent successful ping,
+  // keep health green for a short window.
+  if (
+    !dbOk &&
+    ttl != null &&
+    ttl <= HEALTH_GRACE_TTL_SECONDS &&
+    secondsSinceLastOk != null &&
+    secondsSinceLastOk <= HEALTH_GRACE_LASTOK_SECONDS
+  ) {
+    ok = true;
+    graceApplied = true;
+  }
+
   const statusCode = ok ? 200 : 503;
 
   res.status(statusCode).json({
@@ -115,6 +146,12 @@ app.get("/health", async (req, res) => {
       leaseExpiresAt: formatDate(expiry),
       leaseSecondsRemaining: ttl,
       leaseHumanReadable: ttl != null ? formatTTL(ttl) : null,
+    },
+    grace: {
+      applied: graceApplied,
+      ttlThresholdSeconds: HEALTH_GRACE_TTL_SECONDS,
+      lastOkThresholdSeconds: HEALTH_GRACE_LASTOK_SECONDS,
+      secondsSinceLastOk,
     },
   });
 });
@@ -179,7 +216,8 @@ function logStartupSummary() {
       ? "static couchbase env creds"
       : "couchbase config incomplete";
 
-  logger.info("agentic_trust backend started");
+  logger.info("Agentic_trust backend started");
+  logger.info("");
   logger.debug(`HTTP           : http://localhost:${port}`);
   logger.debug("Health         : GET /health");
   logger.debug("Missions       :");
