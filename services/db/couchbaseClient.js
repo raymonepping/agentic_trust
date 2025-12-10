@@ -7,8 +7,12 @@ const CONNSTR = process.env.CB_CONN_STR || "couchbase://localhost";
 const BUCKET_NAME = process.env.CB_BUCKET || "missions";
 
 // Retry/backoff knobs
-const CONNECT_RETRY_ATTEMPTS = Number(process.env.CB_CONNECT_RETRY_ATTEMPTS ?? 10 );
-const ROTATION_RETRY_ATTEMPTS = Number(process.env.CB_ROTATION_RETRY_ATTEMPTS ?? 5);
+const CONNECT_RETRY_ATTEMPTS = Number(
+  process.env.CB_CONNECT_RETRY_ATTEMPTS ?? 10,
+);
+const ROTATION_RETRY_ATTEMPTS = Number(
+  process.env.CB_ROTATION_RETRY_ATTEMPTS ?? 5,
+);
 
 const RETRY_INITIAL_MS = Number(process.env.CB_AUTH_RETRY_INITIAL_MS ?? 400);
 const RETRY_MAX_MS = Number(process.env.CB_AUTH_RETRY_MAX_MS ?? 2000);
@@ -27,8 +31,8 @@ let leaseExpiry = null;
 let lastPingOkAt = null;
 let rotationTimer = null;
 
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-const jittered = ms => {
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const jittered = (ms) => {
   const j = Math.floor((Math.random() * 2 - 1) * RETRY_JITTER_MS);
   return Math.max(0, ms + j);
 };
@@ -64,7 +68,7 @@ async function connectWithDynamicCreds() {
   leaseExpiry = leaseTtl ? new Date(Date.now() + leaseTtl * 1000) : null;
 
   logger.info(
-    `Connecting with dynamic user '${currentUser}' (lease ~${leaseTtl || "?"}s)`
+    `Connecting with dynamic user '${currentUser}' (lease ~${leaseTtl || "?"}s)`,
   );
 
   let lastErr;
@@ -89,23 +93,25 @@ async function connectWithDynamicCreds() {
         // ignore ping errors here
       }
 
-      logger.info(
-        `Connected as '${currentUser}' on attempt ${attempt}`
-      );
+      logger.info(`Connected as '${currentUser}' on attempt ${attempt}`);
 
       // Mark last successful contact with Couchbase
       lastPingOkAt = new Date();
-      
+
       return;
     } catch (e) {
       lastErr = e;
       const msg = e?.message || String(e);
 
-      if (/auth/i.test(msg) || /authentication/i.test(msg) || /timeout/i.test(msg)) {
-        if (attempt < RETRY_ATTEMPTS) {
+      if (
+        /auth/i.test(msg) ||
+        /authentication/i.test(msg) ||
+        /timeout/i.test(msg)
+      ) {
+        if (attempt < CONNECT_RETRY_ATTEMPTS) {
           logger.warn(
             `Connect attempt ${attempt}/${CONNECT_RETRY_ATTEMPTS} failed (${msg}). ` +
-              `Retrying in ${delay} ms`
+              `Retrying in ${delay} ms`,
           );
           await sleep(jittered(delay));
           delay = Math.min(
@@ -120,7 +126,10 @@ async function connectWithDynamicCreds() {
     }
   }
 
-  throw lastErr || new Error("Failed to connect to Couchbase with dynamic credentials");
+  throw (
+    lastErr ||
+    new Error("Failed to connect to Couchbase with dynamic credentials")
+  );
 }
 
 export async function getCluster() {
@@ -164,19 +173,16 @@ export async function pingCouchbase() {
   // 1) If we have no active cluster
   if (!cluster) {
     // But we had a successful ping recently → stay green within grace window
-    if (
-      lastPingOkAt &&
-      (now - lastPingOkAt.getTime()) / 1000 <= graceSeconds
-    ) {
+    if (lastPingOkAt && (now - lastPingOkAt.getTime()) / 1000 <= graceSeconds) {
       logger.info(
-        "Couchbase cluster currently disconnected, but last ping was within grace window; reporting ok for health"
+        "Couchbase cluster currently disconnected, but last ping was within grace window; reporting ok for health",
       );
       return true;
     }
 
     // No cluster and no recent success → report down quickly, no connect attempts
     logger.warn(
-      "Couchbase ping requested but cluster is not connected and no recent success; reporting down"
+      "Couchbase ping requested but cluster is not connected and no recent success; reporting down",
     );
     return false;
   }
@@ -189,12 +195,9 @@ export async function pingCouchbase() {
     return true;
   } catch (err) {
     // If ping fails but we had a recent good ping, stay green within grace window
-    if (
-      lastPingOkAt &&
-      (now - lastPingOkAt.getTime()) / 1000 <= graceSeconds
-    ) {
+    if (lastPingOkAt && (now - lastPingOkAt.getTime()) / 1000 <= graceSeconds) {
       logger.warn(
-        `Couchbase ping failed (${err.message}), but within grace window; reporting ok for health`
+        `Couchbase ping failed (${err.message}), but within grace window; reporting ok for health`,
       );
       return true;
     }
@@ -238,95 +241,104 @@ export async function startCouchbaseRotation() {
   }
 
   async function tick() {
-  try {
-    const { username, password, leaseTtl } = await getDynamicCouchbaseCreds();
-    const newUser = String(username).trim();
+    try {
+      const { username, password, leaseTtl } = await getDynamicCouchbaseCreds();
+      const newUser = String(username).trim();
 
-    const changedUser = newUser !== currentUser;
-    if (changedUser || !cluster) {
-      logger.info(`Rotating dynamic creds for user '${newUser}', reconnecting`);
+      const changedUser = newUser !== currentUser;
+      if (changedUser || !cluster) {
+        logger.info(
+          `Rotating dynamic creds for user '${newUser}', reconnecting`,
+        );
 
-      ensureEnv();
+        ensureEnv();
 
-      // 1. Build a new cluster without touching the old one
-      let newCluster = null;
-      let newBucket = null;
+        // 1. Build a new cluster without touching the old one
+        let newCluster = null;
+        let newBucket = null;
 
-      let lastErr;
-      let delay = RETRY_INITIAL_MS;
+        let lastErr;
+        let delay = RETRY_INITIAL_MS;
 
-      await sleep(jittered(delay));
+        await sleep(jittered(delay));
 
-      for (let attempt = 1; attempt <= ROTATION_RETRY_ATTEMPTS; attempt++) {
-        try {
-          newCluster = await couchbase.connect(CONNSTR, {
-            username: newUser,
-            password,
-          });
-          newBucket = newCluster.bucket(BUCKET_NAME);
+        for (let attempt = 1; attempt <= ROTATION_RETRY_ATTEMPTS; attempt++) {
           try {
-            await newCluster.ping();
-          } catch {
-            // ignore ping errors here
-          }
-
-          logger.info(
-            `Reconnected as '${newUser}' on attempt ${attempt}`
-          );
-          break;
-        } catch (e) {
-          lastErr = e;
-          const msg = e?.message || String(e);
-
-          if (/auth/i.test(msg) || /authentication/i.test(msg) || /timeout/i.test(msg)) {
-            if (attempt < RETRY_ATTEMPTS) {
-              logger.warn(
-                `Rotation connect attempt ${attempt}/${ROTATION_RETRY_ATTEMPTS} failed (${msg}). ` +
-                `Retrying in ${delay} ms`
-              );
-              await sleep(jittered(delay));
-              delay = Math.min(RETRY_MAX_MS, Math.floor(delay * 1.6) || RETRY_INITIAL_MS);
-              continue;
+            newCluster = await couchbase.connect(CONNSTR, {
+              username: newUser,
+              password,
+            });
+            newBucket = newCluster.bucket(BUCKET_NAME);
+            try {
+              await newCluster.ping();
+            } catch {
+              // ignore ping errors here
             }
+
+            logger.info(`Reconnected as '${newUser}' on attempt ${attempt}`);
+            break;
+          } catch (e) {
+            lastErr = e;
+            const msg = e?.message || String(e);
+
+            if (
+              /auth/i.test(msg) ||
+              /authentication/i.test(msg) ||
+              /timeout/i.test(msg)
+            ) {
+              if (attempt < ROTATION_RETRY_ATTEMPTS) {
+                logger.warn(
+                  `Rotation connect attempt ${attempt}/${ROTATION_RETRY_ATTEMPTS} failed (${msg}). ` +
+                    `Retrying in ${delay} ms`,
+                );
+                await sleep(jittered(delay));
+                delay = Math.min(
+                  RETRY_MAX_MS,
+                  Math.floor(delay * 1.6) || RETRY_INITIAL_MS,
+                );
+                continue;
+              }
+            }
+
+            throw e;
           }
-          throw e;
         }
-      }
 
-      if (!newCluster && lastErr) {
-        throw lastErr;
-      }
-
-      // 2. Only now swap references and close the old cluster
-      const oldCluster = cluster;
-      cluster = newCluster;
-      bucket = newBucket;
-      cachedScope = null;
-      cachedCollection = null;
-      currentUser = newUser;
-      leaseExpiry = leaseTtl ? new Date(Date.now() + leaseTtl * 1000) : null;
-
-      if (oldCluster) {
-        try {
-          await oldCluster.close();
-        } catch {
-          // ignore close errors
+        if (!newCluster && lastErr) {
+          throw lastErr;
         }
+
+        // 2. Only now swap references and close the old cluster
+        const oldCluster = cluster;
+        cluster = newCluster;
+        bucket = newBucket;
+        cachedScope = null;
+        cachedCollection = null;
+        currentUser = newUser;
+        leaseExpiry = leaseTtl ? new Date(Date.now() + leaseTtl * 1000) : null;
+
+        if (oldCluster) {
+          try {
+            await oldCluster.close();
+          } catch {
+            // ignore close errors
+          }
+        }
+      } else {
+        // user unchanged, just refresh lease expiry
+        leaseExpiry = leaseTtl
+          ? new Date(Date.now() + leaseTtl * 1000)
+          : leaseExpiry;
       }
-    } else {
-      // user unchanged, just refresh lease expiry
-      leaseExpiry = leaseTtl ? new Date(Date.now() + leaseTtl * 1000) : leaseExpiry;
+
+      const ttl = leaseTtl || 300;
+      const wait = Math.max(DB_MIN_SECONDS, ttl - DB_LEAD_SECONDS);
+      rotationTimer = setTimeout(tick, wait * 1000);
+    } catch (err) {
+      logger.warn(`Rotation error: ${err.message}`);
+      rotationTimer = setTimeout(tick, 10_000);
     }
-
-    const ttl = leaseTtl || 300;
-    const wait = Math.max(DB_MIN_SECONDS, ttl - DB_LEAD_SECONDS);
-    rotationTimer = setTimeout(tick, wait * 1000);
-  } catch (err) {
-    logger.warn(`Rotation error: ${err.message}`);
-    rotationTimer = setTimeout(tick, 10_000);
   }
-}
-
 
   await tick();
 }

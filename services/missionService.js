@@ -1,7 +1,12 @@
+// services/missionService.js
 import { v4 as uuidv4 } from "uuid";
-import { getCollection, getScope, } from "./db/couchbaseClient.js";
+import {
+  getCollection,
+  getScope,
+  getCluster,
+} from "./db/couchbaseClient.js";
 import { encryptText, decryptText } from "./vault/transit.js";
-
+import logger from "../configurations/logger.js";
 
 export async function createMission({ title, body, owner, tags = [] }) {
   const collection = await getCollection();
@@ -32,11 +37,9 @@ export async function createMission({ title, body, owner, tags = [] }) {
 }
 
 export async function listMissions(limit = 20) {
-  const scope = await getScope();
-
-  const bucketName = process.env.CB_BUCKET;
+  const bucketName = process.env.CB_BUCKET || "missions";
   const scopeName = process.env.CB_SCOPE || "_default";
-  const collName = process.env.CB_COLLECTION || "missions";
+  const collName = process.env.CB_COLLECTION || "_default";
 
   const query = `
     SELECT m.*
@@ -45,12 +48,20 @@ export async function listMissions(limit = 20) {
     LIMIT $1
   `;
 
-  // Depending on SDK version, you might need cluster.query instead.
-  const result = await scope.query(query, {
-    parameters: [limit],
-  });
-
-  return result.rows || [];
+  try {
+    const cluster = await getCluster();
+    const result = await cluster.query(query, {
+      parameters: [limit],
+    });
+    return result.rows || [];
+  } catch (err) {
+    logger.error("listMissions query failed", {
+      message: err?.message,
+      code: err?.code,
+      ctx: err?.context,
+    });
+    throw err;
+  }
 }
 
 export async function getMissionById(id) {

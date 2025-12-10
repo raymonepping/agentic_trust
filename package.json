@@ -8,6 +8,7 @@
     "dev": "nodemon app.js",
     "check:connections": "./scripts/connection_test.sh",
     "check:connections:watch": "./scripts/connection_test.sh --watch --interval 5",
+    "lint": "eslint .",
     "start": "node app.js"
   },
   "dependencies": {
@@ -25,6 +26,9 @@
     "winston-transport": "^4.9.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "eslint": "^9.39.1",
+    "globals": "^16.5.0",
     "nodemon": "^3.1.11"
   }
 }

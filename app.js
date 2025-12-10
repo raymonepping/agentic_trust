@@ -188,8 +188,14 @@ app.get("/db/diagnostics", async (req, res) => {
 });
 
 // Basic error handler
-app.use((err, req, res, next) => {
-  console.error("[Error]", err);
+app.use((err, req, res, _next) => {
+  logger.error("Unhandled application error", {
+    path: req.path,
+    method: req.method,
+    message: err?.message,
+    stack: err?.stack,
+  });
+
   res.status(500).json({ error: "Internal server error" });
 });
 

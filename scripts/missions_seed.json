@@ -1,0 +1,20 @@
+[
+  {
+    "title": "Rotation test mission",
+    "body": "Validate that Vault dynamic Couchbase credentials rotate without service impact.",
+    "owner": "ray",
+    "tags": ["rotation", "vault", "couchbase"]
+  },
+  {
+    "title": "Agentic trust bootstrap",
+    "body": "End to end test of Vault AppRole, Transit encryption, dynamic Couchbase users and Ollama based QnA.",
+    "owner": "ray",
+    "tags": ["vault", "ollama", "agentic", "missions"]
+  },
+  {
+    "title": "Failover and grace window",
+    "body": "Simulate Couchbase or Vault hiccups and verify that the grace window keeps the health endpoint green while the backend recovers.",
+    "owner": "ray",
+    "tags": ["health", "grace", "resilience"]
+  }
+]
