@@ -55,7 +55,7 @@ Release helper for the `agentic_trust` project.
 - Optionally pushes to `origin` and creates a GitHub release if possible
 - Supports a “commit only” mode when no bump flag is provided
 
-### Usage
+### Usage of release
 
 From the project root:
 
@@ -65,35 +65,35 @@ From the project root:
 
 #### Modes
 
-* `--patch`
+- `--patch`
   `X.Y.Z` becomes `X.Y.(Z+1)`
 
-* `--minor`
+- `--minor`
   `X.Y.Z` becomes `X.(Y+1).0`
 
-* `--major`
+- `--major`
   `X.Y.Z` becomes `(X+1).0.0`
 
-* **No bump flag**
+- **No bump flag**
   If you call the script without `--patch`, `--minor`, or `--major`, it will:
 
-  * Show that it is running in **commit only mode**
-  * Stage changes under the project path
-  * Commit and push using `commit_gh` if that command is available
-  * Otherwise fall back to a normal `git commit` flow
+  - Show that it is running in **commit only mode**
+  - Stage changes under the project path
+  - Commit and push using `commit_gh` if that command is available
+  - Otherwise fall back to a normal `git commit` flow
 
 #### Additional options
 
-* `--dry-run`
+- `--dry-run`
   Prints what would happen without making any changes.
 
-* `--init-remote`
+- `--init-remote`
   When no `origin` remote exists, the script tries to create one using the GitHub CLI (`gh repo create ...`) and push the current branch.
 
 ### Notes
 
-* The script is aware of the repository root and the project root. It will only stage and commit files in the project path, not unrelated parent folders.
-* If there are no staged changes, it will skip commit and tagging.
+- The script is aware of the repository root and the project root. It will only stage and commit files in the project path, not unrelated parent folders.
+- If there are no staged changes, it will skip commit and tagging.
 
 ---
 
@@ -103,10 +103,10 @@ Relocates an existing Nuxt frontend project into the `frontend/` folder of this 
 
 Typical case:
 
-* You start with a standalone `agentic_trust_frontend` repo or folder.
-* You want that Nuxt app to live inside `agentic_trust/frontend`.
+- You start with a standalone `agentic_trust_frontend` repo or folder.
+- You want that Nuxt app to live inside `agentic_trust/frontend`.
 
-### Usage
+### Usage of relocate_frontend
 
 From the `agentic_trust` repo root:
 
@@ -128,28 +128,28 @@ Example:
 
 3. If the destination does not exist yet:
 
-   * Verifies that the parent folder exists
-   * Creates the destination directory
+   - Verifies that the parent folder exists
+   - Creates the destination directory
 
 4. Guardrail: checks for running processes that reference the **source path**
 
-   * If anything is found (for example `npm run dev`, `nuxt dev`, or `node`), the script aborts
+   - If anything is found (for example `npm run dev`, `nuxt dev`, or `node`), the script aborts
 
 5. Uses `rsync` to sync files:
 
-   * Excludes:
+   - Excludes:
 
-     * `node_modules`
-     * `.nuxt`
-     * `.output`
-     * `.git`
-     * `.idea`
-     * `.vscode`
+     - `node_modules`
+     - `.nuxt`
+     - `.output`
+     - `.git`
+     - `.idea`
+     - `.vscode`
 
 6. Verifies that the destination contains:
 
-   * `package.json`
-   * At least one of `app/`, `pages/`, or `components/`
+   - `package.json`
+   - At least one of `app/`, `pages/`, or `components/`
 
 7. Prints a small folder overview using `tree` if available
 
@@ -175,14 +175,14 @@ Once you are happy with the new layout, you can manually remove the old source f
 
 These files together provide a basic way to seed the system with example missions.
 
-* `missions_seed.json`
+- `missions_seed.json`
   Contains example mission definitions in JSON format.
 
-* `seed_missions.sh`
+- `seed_missions.sh`
   Reads that JSON and interacts with the backend to insert demo missions.
   The concrete behavior and endpoint configuration are inside the script itself.
 
-### Usage
+### Usage of seed_mission
 
 From the project root:
 
@@ -192,8 +192,8 @@ From the project root:
 
 Typical outcome:
 
-* A set of demo missions is created
-* Those missions appear on the frontend missions page after reload
+- A set of demo missions is created
+- Those missions appear on the frontend missions page after reload
 
 If you change `missions_seed.json`, rerunning the script lets you quickly repopulate a development environment.
 
@@ -205,12 +205,12 @@ Helper script used to validate basic connectivity in a development environment.
 
 Typical checks include:
 
-* Whether key endpoints and ports are reachable
-* Whether the backend responds as expected
+- Whether key endpoints and ports are reachable
+- Whether the backend responds as expected
 
 Exact behavior is defined in the script itself. You can open it to see the individual checks.
 
-### Usage
+### Usage of connection_test
 
 From the project root:
 
@@ -228,9 +228,9 @@ A small helper document which collects example questions to ask the mission agen
 
 Typical uses:
 
-* Smoke testing the backend agent from the UI
-* Demonstrating capabilities during a demo
-* Providing inspiration for realistic mission-related prompts
+- Smoke testing the backend agent from the UI
+- Demonstrating capabilities during a demo
+- Providing inspiration for realistic mission-related prompts
 
 You can extend this file with your own questions as the project evolves.
 
@@ -238,9 +238,9 @@ You can extend this file with your own questions as the project evolves.
 
 ## Conventions
 
-* All scripts are written in Bash with `set -euo pipefail` for safety.
-* Scripts try to fail fast with clear error messages instead of silent partial changes.
-* Whenever external tools such as `git`, `rsync`, or `gh` are required, the scripts check for them first.
+- All scripts are written in Bash with `set -euo pipefail` for safety.
+- Scripts try to fail fast with clear error messages instead of silent partial changes.
+- Whenever external tools such as `git`, `rsync`, or `gh` are required, the scripts check for them first.
 
 If you add new scripts, following the same style and adding a short section to this `README` will keep future you very happy.
 
