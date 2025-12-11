@@ -1,44 +1,28 @@
 // services/vault/dbCreds.js
-import fetch from "node-fetch";
+import logger from "../../configurations/logger.js";
+import { getDynamicDbCreds } from "./vaultClient.js";
 
-const VAULT_ADDR = process.env.VAULT_ADDR;
-const VAULT_TOKEN = process.env.VAULT_TOKEN;
-const VAULT_DB_ROLE = process.env.VAULT_DB_ROLE || "readwrite";
-
-if (!VAULT_ADDR) {
-  console.warn("[vault-db-creds] VAULT_ADDR is not set; dynamic DB creds will not work.");
-}
-
+/**
+ * Adapter between vaultClient and couchbaseClient.
+ *
+ * - vaultClient.getDynamicDbCreds() handles Vault auth (token or AppRole)
+ * - This function reshapes that output to what couchbaseClient expects.
+ */
 export async function getDynamicCouchbaseCreds() {
-  if (!VAULT_ADDR || !VAULT_TOKEN) {
-    throw new Error("Vault addr/token are not set for dynamic DB credentials");
+  const { username, password, leaseDuration } = await getDynamicDbCreds();
+
+  if (!username || !password) {
+    throw new Error("Vault dynamic DB creds missing username or password");
   }
 
-  const url = `${VAULT_ADDR}/v1/database/creds/${VAULT_DB_ROLE}`;
-
-  const res = await fetch(url, {
-    method: "GET",
-    headers: {
-      "X-Vault-Token": VAULT_TOKEN,
-    },
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`[vault-db-creds] Vault error: ${res.status} ${text}`);
-  }
-
-  const data = await res.json();
-  const creds = data?.data;
-
-  if (!creds?.username || !creds?.password) {
-    throw new Error("[vault-db-creds] Response missing username/password");
-  }
+  logger.debug(
+    `Fetched dynamic Couchbase creds from Vault for user '${username}' (ttl ~${leaseDuration ?? "?"}s)`
+  );
 
   return {
-    username: creds.username,
-    password: creds.password,
-    leaseId: data.lease_id,
-    leaseTtl: data.lease_duration,
+    username,
+    password,
+    // couchbaseClient expects leaseTtl in seconds
+    leaseTtl: leaseDuration,
   };
 }

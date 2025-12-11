@@ -1,56 +1,149 @@
+// services/ai/providers/huggingFaceProvider.js
 import fetch from "node-fetch";
+import logger from "../../../configurations/logger.js";
+import { getKvSecret } from "../../vault/vaultClient.js";
 
-const HF_API_KEY = process.env.HF_API_KEY;
-const HF_MODEL = process.env.HF_MODEL || "mistralai/Mistral-7B-Instruct";
-const HF_API_URL =
-  process.env.HF_API_URL ||
-  `https://api-inference.huggingface.co/models/${HF_MODEL}`;
+const DEFAULT_CHAT_URL = "https://router.huggingface.co/v1/chat/completions";
 
-export async function huggingFaceChat({ system, messages }) {
-  if (!HF_API_KEY) {
-    throw new Error("HF_API_KEY is not set");
+let cachedConfig = null;
+
+async function loadHfConfig() {
+  if (cachedConfig) {
+    return cachedConfig;
   }
 
-  const userContent = messages
-    .map(m => `${m.role.toUpperCase()}: ${m.content}`)
-    .join("\n\n");
+  // Try Vault first
+  let secret = {};
+  try {
+    secret = await getKvSecret("ai/huggingface");
+  } catch (err) {
+    logger.warn("[huggingface] Could not read kv/ai/huggingface from Vault", {
+      message: err?.message,
+    });
+  }
 
-  const prompt = [
-    system ? `SYSTEM: ${system}` : "",
-    userContent,
-    "ASSISTANT:",
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+  const apiKey =
+    secret.api_key ||
+    process.env.HF_API_KEY ||
+    process.env.HUGGINGFACE_API_KEY;
 
-  const payload = {
-    inputs: prompt,
-    parameters: {
-      max_new_tokens: 512,
-      temperature: 0.3,
-    },
-  };
+  const model =
+    secret.model ||
+    process.env.HF_MODEL ||
+    process.env.HUGGINGFACE_MODEL;
 
-  const res = await fetch(HF_API_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${HF_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
+  const apiUrl =
+    secret.api_url ||
+    process.env.HF_API_URL ||
+    DEFAULT_CHAT_URL;
+
+  if (!apiKey) {
+    throw new Error(
+      "Hugging Face api_key is not set in kv/ai/huggingface or HF_API_KEY/HUGGINGFACE_API_KEY env"
+    );
+  }
+
+  if (!model) {
+    throw new Error(
+      "Hugging Face model is not set in kv/ai/huggingface or HF_MODEL/HUGGINGFACE_MODEL env"
+    );
+  }
+
+  cachedConfig = { apiKey, model, apiUrl };
+
+  logger.debug("[huggingface] loaded config", {
+    model,
+    apiUrl,
+    source: secret.api_key ? "vault" : "env",
+    apiKeyPrefix: apiKey.slice(0, 6),
+    apiKeyLength: apiKey.length,
   });
 
+  return cachedConfig;
+}
+
+/**
+ * Small OpenAI style abstraction:
+ *
+ *   huggingFaceChat({ system, messages })
+ *
+ * where messages = [{ role: "user" | "assistant" | "system", content: string }]
+ */
+export async function huggingFaceChat({ system, messages }) {
+  const { apiKey, model, apiUrl } = await loadHfConfig();
+
+  const chatMessages = [];
+
+  if (system) {
+    chatMessages.push({ role: "system", content: system });
+  }
+
+  for (const m of messages) {
+    chatMessages.push({
+      role: m.role,
+      content: m.content,
+    });
+  }
+
+  logger.debug("[huggingface] calling router", {
+    model,
+    apiUrl,
+    messageCount: chatMessages.length,
+  });
+
+  const body = {
+    model,
+    messages: chatMessages,
+    max_tokens: 512,
+    temperature: 0.3,
+  };
+
+  let res;
+  try {
+    res = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    logger.error("[huggingface] network error", {
+      message: err.message,
+      stack: err.stack,
+    });
+    throw new Error(`Hugging Face network error: ${err.message}`);
+  }
+
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Hugging Face error: ${res.status} ${text}`);
+    const text = await res.text().catch(() => "<no body>");
+    logger.error("[huggingface] router error", {
+      status: res.status,
+      statusText: res.statusText,
+      body: text,
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      throw new Error(
+        "Hugging Face rejected the token. Check api_key and model access."
+      );
+    }
+
+    throw new Error(
+      `Hugging Face router error: ${res.status} ${res.statusText}`
+    );
   }
 
   const data = await res.json();
 
-  const text =
-    Array.isArray(data) && data[0]?.generated_text
-      ? data[0].generated_text
-      : data.generated_text || "";
+  const choice = data.choices && data.choices[0];
+  const content = choice?.message?.content ?? null;
 
-  return text;
+  if (!content) {
+    logger.warn("[huggingface] no assistant content in response", { data });
+    return JSON.stringify(data);
+  }
+
+  return content;
 }

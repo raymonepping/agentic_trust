@@ -1,9 +1,13 @@
+// routes/mission.js
 import { Router } from "express";
+import logger from "../configurations/logger.js";
+
 import {
   createMission,
   listMissions,
   getMissionById,
 } from "../services/missionService.js";
+import { generateMissionSummary } from "../services/ai/providers/summaryProvider.js";
 
 const router = Router();
 
@@ -15,7 +19,35 @@ router.post("/", async (req, res, next) => {
       return res.status(400).json({ error: "title and body are required" });
     }
 
-    const mission = await createMission({ title, body, owner, tags });
+    // Enrichment step: try to generate a summary from the plaintext body
+    let summary = "";
+    let summaryStatus = "n/a";
+
+    try {
+      summary = await generateMissionSummary(body);
+      summaryStatus = summary ? "complete" : "error";
+
+      logger.info(
+        `[missions] Summary generation for new mission: status=${summaryStatus}`
+      );
+    } catch (err) {
+      summary = "";
+      summaryStatus = "error";
+      logger.warn(
+        `[missions] Failed to generate summary: ${err.message}`
+      );
+    }
+
+    // Pass summary + status into the service
+    const mission = await createMission({
+      title,
+      body,
+      owner,
+      tags,
+      summary,
+      summaryStatus,
+    });
+
     res.status(201).json(mission);
   } catch (err) {
     next(err);

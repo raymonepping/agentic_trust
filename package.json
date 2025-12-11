@@ -12,6 +12,7 @@
     "start": "node app.js"
   },
   "dependencies": {
+    "@huggingface/transformers": "^3.8.1",
     "cors": "^2.8.5",
     "couchbase": "^4.6.0",
     "dotenv": "*",

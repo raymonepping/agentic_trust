@@ -7,7 +7,7 @@ let tokenExpiresAt = 0; // epoch seconds
 function getBaseConfig() {
   const VAULT_ADDR = process.env.VAULT_ADDR || "http://localhost:8200";
   const VAULT_NAMESPACE = process.env.VAULT_NAMESPACE;
-  const AUTH_MODE = process.env.AUTH_MODE || "token"; // "token" or "approle"
+  const AUTH_MODE = process.env.AUTH_MODE || "approle"; // "token" or "approle"
   const STATIC_TOKEN = process.env.VAULT_TOKEN || null;
 
   return { VAULT_ADDR, VAULT_NAMESPACE, AUTH_MODE, STATIC_TOKEN };
@@ -135,4 +135,26 @@ export async function getDynamicDbCreds() {
   }
 
   return { username, password, leaseId, leaseDuration };
+}
+
+// ---- KV v2 helper: read secret data from kv/<path> ----
+export async function getKvSecret(path) {
+  const { VAULT_ADDR, VAULT_NAMESPACE } = getBaseConfig();
+  const token = await ensureClientToken();
+  const url = `${vaultBaseUrl(VAULT_ADDR)}/v1/kv/data/${path}`;
+  const headers = buildHeaders(token, VAULT_NAMESPACE);
+
+  const res = await fetch(url, {
+    method: "GET",
+    headers,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Vault KV read failed for path ${path}: ${res.status} ${text}`);
+  }
+
+  const data = await res.json();
+  // KV v2: { data: { data: { ...your fields... }, metadata: { ... } } }
+  return data?.data?.data || {};
 }

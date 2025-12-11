@@ -12,6 +12,7 @@ import swaggerUi from "swagger-ui-express";
 // Application routes
 import missionsRouter from "./routes/missions.js";
 import aiRouter from "./routes/ai.js";
+import auditRouter from "./routes/audit.js";
 
 // Logging and HTTP diagnostics
 import httpLogger from "./configurations/morganLogger.js";
@@ -82,6 +83,7 @@ app.use((req, res, next) => {
 // Core API routers
 app.use("/missions", missionsRouter);
 app.use("/ai", aiRouter);
+app.use("/audit", auditRouter);
 
 // Load OpenAPI spec
 const openapiPath = path.join(__dirname, "openapi.json");
