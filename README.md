@@ -169,34 +169,44 @@ Environment variables (backend)
 
 Typical values in .env at repo root:
 
-# Couchbase
+### Couchbase
 
+```text
 CB_ENDPOINT=couchbase://127.0.0.1
 CB_USERNAME=agentic_trust
 CB_PASSWORD=super-secret
 CB_BUCKET=missions
 CB_SCOPE=_default
 CB_COLLECTION=_default
+```
 
-# Vault
+### Vault
 
+```text
 VAULT_ADDR=<http://127.0.0.1:8200>
 VAULT_TOKEN=...               # For local dev only, prefer AppRole in real setups
 VAULT_TRANSIT_MOUNT=transit   # Optional override
 VAULT_TRANSIT_KEY=missions    # Key name used to encrypt mission bodies
+```
 
-# Ollama
+### Ollama
 
+```text
 OLLAMA_API_URL=<http://127.0.0.1:11434>
 OLLAMA_MODEL=llama3.1         # Example
+```
 
-# AI provider selector
+### AI provider selector
 
+```text
 AI_PROVIDER=ollama            # huggingface is supported but typically disabled
+```
 
-# Logging
+### Logging
 
+```text
 LOG_LEVEL=info
+```
 
 Vault KV for AI configuration
 
@@ -222,8 +232,10 @@ Running the backend
 
 From the repo root:
 
+```bash
 npm install
 npm run dev   # or npm start depending on your script configuration
+```
 
 The Express app:
  • Loads configuration
@@ -239,9 +251,11 @@ Running the frontend
 
 Change into the frontend folder:
 
+```bash
 cd frontend
 npm install
 npm run dev
+```
 
 The Nuxt 3 app will:
  • Call the backend for missions and Q&A
@@ -258,7 +272,9 @@ Seeding data
 
 You can seed some example missions into Couchbase using:
 
+```bash
 ./scripts/seed_missions.sh
+```
 
 The script will:
  • Read scripts/missions_seed.json
@@ -273,11 +289,15 @@ Moving or replacing the frontend
 
 The repository includes a helper script:
 
+```bash
 ./scripts/relocate_frontend.sh <source_dir> <destination_dir>
+```
 
 For example:
 
+```bash
 ./scripts/relocate_frontend.sh ../agentic_trust_frontend ./frontend
+```
 
 The script:
  • Verifies rsync and package.json availability
