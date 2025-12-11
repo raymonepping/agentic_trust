@@ -104,7 +104,7 @@ Missions
 
 A mission is stored in Couchbase with the following shape:
 
-```text
+```json
 {
   "id": "uuid",
   "title": "Create a brag document",
@@ -118,27 +118,29 @@ A mission is stored in Couchbase with the following shape:
 ```
 
 When the frontend creates a mission:
-	1.	It sends title, body, optional owner, and tags to the backend.
-	2.	The backend:
-	•	Calls generateMissionSummary(body) via Hugging Face (optional enrichment)
-	•	Encrypts body using Vault Transit
-	•	Stores everything in Couchbase
-	3.	The frontend shows:
-	•	Title
-	•	Summary (or “No summary stored for this mission yet.”)
-	•	Status indicator based on summary_status
+
+ 1. It sends title, body, optional owner, and tags to the backend.
+ 2. The backend:
+ • Calls generateMissionSummary(body) via Hugging Face (optional enrichment)
+ • Encrypts body using Vault Transit
+ • Stores everything in Couchbase
+ 3. The frontend shows:
+ • Title
+ • Summary (or “No summary stored for this mission yet.”)
+ • Status indicator based on summary_status
 
 Agentic Q&A
 
 When you select a mission and ask a question from the Nuxt page:
-	1.	The backend fetches the mission from Couchbase.
-	2.	It decrypts the encrypted_body via Vault Transit.
-	3.	It builds a prompt with:
-	•	The decrypted mission body
-	•	The stored summary if present
-	•	The user question
-	4.	It sends that to Ollama via ollamaProvider.js.
-	5.	The answer is streamed back to the frontend and shown in the chat view.
+
+ 1. The backend fetches the mission from Couchbase.
+ 2. It decrypts the encrypted_body via Vault Transit.
+ 3. It builds a prompt with:
+ • The decrypted mission body
+ • The stored summary if present
+ • The user question
+ 4. It sends that to Ollama via ollamaProvider.js.
+ 5. The answer is streamed back to the frontend and shown in the chat view.
 
 All of this happens without the frontend ever seeing the raw mission body through a direct DB connection.
 
@@ -147,15 +149,15 @@ All of this happens without the frontend ever seeing the raw mission body throug
 Prerequisites
 
 You will need:
-	•	Node.js 20 or later
-	•	npm or pnpm
-	•	Couchbase Server (local or remote)
-	•	Bucket, scope and collection for missions
-	•	HashiCorp Vault
-	•	Transit secrets engine enabled
-	•	KV secrets engine enabled for kv/ai and optionally for DB creds
-	•	Ollama running locally, or reachable via HTTP
-	•	Optional: a Hugging Face account and API token for summarisation
+ • Node.js 20 or later
+ • npm or pnpm
+ • Couchbase Server (local or remote)
+ • Bucket, scope and collection for missions
+ • HashiCorp Vault
+ • Transit secrets engine enabled
+ • KV secrets engine enabled for kv/ai and optionally for DB creds
+ • Ollama running locally, or reachable via HTTP
+ • Optional: a Hugging Face account and API token for summarisation
 
 ⸻
 
@@ -168,6 +170,7 @@ Environment variables (backend)
 Typical values in .env at repo root:
 
 # Couchbase
+
 CB_ENDPOINT=couchbase://127.0.0.1
 CB_USERNAME=agentic_trust
 CB_PASSWORD=super-secret
@@ -176,34 +179,40 @@ CB_SCOPE=_default
 CB_COLLECTION=_default
 
 # Vault
-VAULT_ADDR=http://127.0.0.1:8200
+
+VAULT_ADDR=<http://127.0.0.1:8200>
 VAULT_TOKEN=...               # For local dev only, prefer AppRole in real setups
 VAULT_TRANSIT_MOUNT=transit   # Optional override
 VAULT_TRANSIT_KEY=missions    # Key name used to encrypt mission bodies
 
 # Ollama
-OLLAMA_API_URL=http://127.0.0.1:11434
+
+OLLAMA_API_URL=<http://127.0.0.1:11434>
 OLLAMA_MODEL=llama3.1         # Example
 
 # AI provider selector
+
 AI_PROVIDER=ollama            # huggingface is supported but typically disabled
 
 # Logging
+
 LOG_LEVEL=info
 
 Vault KV for AI configuration
 
 Hugging Face settings are read from kv/ai/huggingface for both:
-	•	huggingFaceProvider.js (chat provider, usually disabled)
-	•	summaryProvider.js (summaries)
+ • huggingFaceProvider.js (chat provider, usually disabled)
+ • summaryProvider.js (summaries)
 
 Example secret:
 
+```json
 {
   "api_key": "hf_...",
   "model": "facebook/bart-large-cnn",
   "summary_model": "facebook/bart-large-cnn"
 }
+```
 
 You can adapt this to match the model and endpoint you actually use.
 
@@ -217,10 +226,10 @@ npm install
 npm run dev   # or npm start depending on your script configuration
 
 The Express app:
-	•	Loads configuration
-	•	Connects to Couchbase
-	•	Connects to Vault
-	•	Exposes routes defined in routes/
+ • Loads configuration
+ • Connects to Couchbase
+ • Connects to Vault
+ • Exposes routes defined in routes/
 
 Swagger UI is enabled through swaggerOptions.js and openapi.json. You can mount it in app.js if not already done, usually under a path such as /docs.
 
@@ -235,11 +244,11 @@ npm install
 npm run dev
 
 The Nuxt 3 app will:
-	•	Call the backend for missions and Q&A
-	•	Render:
-	•	A mission list with summaries
-	•	A mission detail view with status and created timestamp
-	•	An agentic Q&A chat pane scoped to the selected mission
+ • Call the backend for missions and Q&A
+ • Render:
+ • A mission list with summaries
+ • A mission detail view with status and created timestamp
+ • An agentic Q&A chat pane scoped to the selected mission
 
 Update the base URL or API client in frontend/composables/useApiClient.ts or equivalent so it points at your backend.
 
@@ -252,9 +261,9 @@ You can seed some example missions into Couchbase using:
 ./scripts/seed_missions.sh
 
 The script will:
-	•	Read scripts/missions_seed.json
-	•	Insert demo missions into the configured bucket/scope/collection
-	•	You can then reload missions from the frontend
+ • Read scripts/missions_seed.json
+ • Insert demo missions into the configured bucket/scope/collection
+ • You can then reload missions from the frontend
 
 There is also a scripts/mission_questions.md with inspiration for Q&A prompts.
 
@@ -271,10 +280,10 @@ For example:
 ./scripts/relocate_frontend.sh ../agentic_trust_frontend ./frontend
 
 The script:
-	•	Verifies rsync and package.json availability
-	•	Refuses to run if a dev server is still using the source directory
-	•	Uses rsync to sync everything except node_modules, .nuxt, .output, .git
-	•	Performs light verification in the destination and prints a small tree
+ • Verifies rsync and package.json availability
+ • Refuses to run if a dev server is still using the source directory
+ • Uses rsync to sync everything except node_modules, .nuxt, .output, .git
+ • Performs light verification in the destination and prints a small tree
 
 You normally do not need this day to day, but it is handy when you want to drop in a new Nuxt template as the frontend.
 
@@ -283,20 +292,20 @@ You normally do not need this day to day, but it is handy when you want to drop 
 Security notes
 
 This project is opinionated about trust boundaries.
-	•	Missions are encrypted using Vault Transit before writing to Couchbase.
-	•	Vault is the single source of truth for:
-	•	Transit keys
-	•	AI provider credentials
-	•	Optional database credentials
-	•	The frontend has no direct database access.
-	•	AI providers are configured centrally and abstracted behind services/ai/aiClient.js.
-	•	Hugging Face is treated as an optional enrichment step, not a primary dependency.
+ • Missions are encrypted using Vault Transit before writing to Couchbase.
+ • Vault is the single source of truth for:
+ • Transit keys
+ • AI provider credentials
+ • Optional database credentials
+ • The frontend has no direct database access.
+ • AI providers are configured centrally and abstracted behind services/ai/aiClient.js.
+ • Hugging Face is treated as an optional enrichment step, not a primary dependency.
 
 For a real deployment you would:
-	•	Replace direct VAULT_TOKEN usage with AppRole or JWT
-	•	Use TLS everywhere
-	•	Use Vault namespaces and more granular policies
-	•	Rotate keys and tokens on a schedule
+ • Replace direct VAULT_TOKEN usage with AppRole or JWT
+ • Use TLS everywhere
+ • Use Vault namespaces and more granular policies
+ • Rotate keys and tokens on a schedule
 
 ⸻
 
