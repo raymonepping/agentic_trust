@@ -94,7 +94,7 @@ This repository is a working lab, not a product. It is ideal for workshops, brow
     ├── public/
     ├── nuxt.config.ts
     └── package.json
-
+```
 
 ⸻
 
