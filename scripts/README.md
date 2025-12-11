@@ -243,6 +243,3 @@ You can extend this file with your own questions as the project evolves.
 - Whenever external tools such as `git`, `rsync`, or `gh` are required, the scripts check for them first.
 
 If you add new scripts, following the same style and adding a short section to this `README` will keep future you very happy.
-
-```
-```
