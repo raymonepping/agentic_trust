@@ -24,6 +24,12 @@ usage() {
   cat <<EOF
 Usage: $(basename "$0") [--patch|--minor|--major] [--dry-run] [--init-remote] [--help]
 
+If you omit --patch, --minor and --major the script will:
+  - git add the project path
+  - commit
+  - push
+  using 'commit_gh' when available.
+
 Options:
   --patch        Bump patch version (X.Y.Z -> X.Y.(Z+1))
   --minor        Bump minor version (X.Y.Z -> X.(Y+1).0)
@@ -36,6 +42,7 @@ Examples:
   $(basename "$0") --patch
   $(basename "$0") --minor --init-remote
   $(basename "$0") --major --dry-run
+  $(basename "$0")                # commit only mode, no version bump
 EOF
 }
 
@@ -95,13 +102,6 @@ parse_args() {
     esac
     shift
   done
-
-  if [[ -z "${BUMP_TYPE}" ]]; then
-    error "You must specify one of: --patch, --minor, --major"
-    echo
-    usage
-    exit 1
-  fi
 }
 
 ensure_git_repo() {
@@ -194,9 +194,11 @@ ensure_clean_or_warn() {
   status=$(git status --porcelain -- "${PROJECT_REL_PATH}")
 
   if [[ -n "$status" ]]; then
-    warn "Working tree has changes under '${PROJECT_REL_PATH}'. These will be committed as part of this release."
+    warn "Working tree has changes under '${PROJECT_REL_PATH}'. These will be committed."
     echo "$status"
     echo
+  else
+    info "No changes detected under '${PROJECT_REL_PATH}'."
   fi
 }
 
@@ -215,7 +217,7 @@ create_remote_if_requested() {
   fi
 
   if [[ "${INIT_REMOTE}" != "true" ]]; then
-    warn "No 'origin' remote found. Skipping push and remote tag sync."
+    warn "No 'origin' remote found. Skipping push and remote sync."
     echo "You can set a remote manually with for example:"
     echo "  git remote add origin <url>"
     return 1
@@ -261,19 +263,15 @@ commit_and_tag() {
 
   # Decide whether there is anything to commit
   if has_head; then
-    # Normal case: HEAD exists, we can safely use diff on the index
     if git diff --cached --quiet; then
       warn "No changes to commit for '${PROJECT_REL_PATH}'. Skipping commit and tag."
       return
     fi
   else
-    # No HEAD yet. In a brand new repo, just check if we have any staged files.
     if [[ -z "$(git diff --cached --name-only)" ]]; then
       warn "No files staged for initial commit. Skipping commit and tag."
       return
     fi
-
-    # Ensure branch exists for first commit
     git symbolic-ref HEAD "refs/heads/${branch}" >/dev/null 2>&1 || true
   fi
 
@@ -299,6 +297,55 @@ commit_and_tag() {
       fi
     else
       warn "Remote was not created. Tag 'v${NEW_VERSION}' exists only locally."
+    fi
+  fi
+}
+
+commit_without_bump() {
+  local branch
+
+  if has_head; then
+    branch=$(git rev-parse --abbrev-ref HEAD)
+  else
+    branch="main"
+  fi
+
+  git add -- "${PROJECT_REL_PATH}"
+
+  if has_head; then
+    if git diff --cached --quiet; then
+      warn "No changes to commit for '${PROJECT_REL_PATH}'. Nothing to do."
+      return
+    fi
+  else
+    if [[ -z "$(git diff --cached --name-only)" ]]; then
+      warn "No files staged for initial commit. Nothing to do."
+      return
+    fi
+    git symbolic-ref HEAD "refs/heads/${branch}" >/dev/null 2>&1 || true
+  fi
+
+  local commit_msg="chore(agentic_trust): sync project changes"
+
+  if command -v commit_gh >/dev/null 2>&1; then
+    info "Using commit_gh for commit and push"
+    commit_gh "${commit_msg}" || warn "commit_gh failed, changes are still staged"
+    return
+  fi
+
+  git commit -m "${commit_msg}"
+
+  if has_origin_remote; then
+    info "Pushing branch '${branch}' to origin"
+    git push origin "${branch}"
+  else
+    if create_remote_if_requested; then
+      if has_origin_remote; then
+        info "Pushing branch '${branch}' to origin"
+        git push origin "${branch}" || warn "Failed to push branch '${branch}'"
+      fi
+    else
+      warn "Remote was not created. Commit exists only locally."
     fi
   fi
 }
@@ -333,25 +380,44 @@ main() {
   require_command git
   ensure_git_repo
 
-  read_version
-  compute_new_version
+  if [[ -n "${BUMP_TYPE}" ]]; then
+    # Version bump mode
+    read_version
+    compute_new_version
 
-  echo "${GREEN}Current version:${RESET} ${CURRENT_VERSION}"
-  echo "${GREEN}New version:    ${RESET} ${NEW_VERSION}"
-  echo
+    echo "${GREEN}Current version:${RESET} ${CURRENT_VERSION}"
+    echo "${GREEN}New version:    ${RESET} ${NEW_VERSION}"
+    echo
 
-  if [[ "${DRY_RUN}" == "true" ]]; then
-    info "Dry run requested. No changes will be made."
-    exit 0
+    if [[ "${DRY_RUN}" == "true" ]]; then
+      info "Dry run requested. Would update VERSION to ${NEW_VERSION}, commit and tag."
+      exit 0
+    fi
+
+    ensure_clean_or_warn
+    update_version_file
+    commit_and_tag
+    create_github_release_if_possible
+
+    echo
+    info "Release v${NEW_VERSION} complete for project path '${PROJECT_REL_PATH}'."
+  else
+    # Commit only mode
+    info "No version bump flag provided. Running in commit only mode."
+    echo
+
+    if [[ "${DRY_RUN}" == "true" ]]; then
+      ensure_clean_or_warn
+      info "Dry run requested. Would git add, commit and push changes under '${PROJECT_REL_PATH}'."
+      exit 0
+    fi
+
+    ensure_clean_or_warn
+    commit_without_bump
+
+    echo
+    info "Commit only flow completed for project path '${PROJECT_REL_PATH}'."
   fi
-
-  ensure_clean_or_warn
-  update_version_file
-  commit_and_tag
-  create_github_release_if_possible
-
-  echo
-  info "Release v${NEW_VERSION} complete for project path '${PROJECT_REL_PATH}'."
 }
 
 main "$@"
