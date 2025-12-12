@@ -37,6 +37,7 @@ temp/
 .env
 .env.local
 .env.*.local
+.secret.env
 
 # IDE and editor files
 .vscode/

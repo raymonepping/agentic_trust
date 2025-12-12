@@ -1,6 +1,6 @@
 
 
-## 📁 Folder Tree - 2025-12-11 13:20:16 ##
+## 📁 Folder Tree - 2025-12-12 09:55:27 ##
 
 ./
 ├── configurations/
@@ -200,7 +200,6 @@
 │   ├── .eslintrc.cjs
 │   ├── .npmrc
 │   ├── eslint.config.mjs
-│   ├── FOLDER_TREE.md
 │   ├── nuxt.config.ts
 │   ├── package-lock.json
 │   ├── package.json
@@ -210,6 +209,7 @@
 │   ├── renovate.json
 │   └── tsconfig.json
 ├── policies/
+│   ├── agentic-backend.hcl
 │   └── app-policy.hcl
 ├── routes/
 │   ├── ai.js
@@ -219,6 +219,7 @@
 │   ├── connection_test.sh*
 │   ├── mission_questions.md
 │   ├── missions_seed.json
+│   ├── README.md
 │   ├── release.sh*
 │   ├── relocate_frontend.sh*
 │   └── seed_missions.sh*
@@ -240,9 +241,12 @@
 │   └── missionService.js
 ├── app.js
 ├── eslint.config.js
+├── FOLDER_TREE.md
+├── LICENSE
 ├── openapi.json
 ├── package-lock.json
 ├── package.json
+├── README.md
 └── VERSION
 
-30 directories, 212 files
+30 directories, 216 files
