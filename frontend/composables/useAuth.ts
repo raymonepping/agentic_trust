@@ -1,106 +1,129 @@
 // composables/useAuth.ts
-type User = { email: string; display_name?: string; roles: string[] }
-type LoginResp = { token: string; user: User }
-type SignupResp = { ok: boolean; status: string }
+
+interface AuthUser {
+  user_id: string;
+  display_name: string;
+  roles: string[];
+}
+
+interface AuthResponse {
+  token: string;
+  user: AuthUser;
+}
 
 export function useAuth() {
-  const token = useState<string | null>('auth:token', () => null)
-  const user  = useState<User | null>('auth:user',  () => null)
+  const config = useRuntimeConfig();
+  const apiBase = config.public.apiBase;
 
-  const error   = useState<string | null>('auth:error', () => null)
-  const loading = useState<boolean>('auth:loading', () => false)
+  const token = useState<string | null>("auth_token", () => null);
+  const user = useState<AuthUser | null>("auth_user", () => null);
+  const loading = ref(false);
+  const error = ref<string | null>(null);
+
+  const loggedIn = computed(() => Boolean(token.value));
 
   // Restore from localStorage on client
-  if (process.client && token.value === null) {
-    const t = localStorage.getItem('booklib:token')
-    const u = localStorage.getItem('booklib:user')
-    if (t) token.value = t
-    if (u) user.value = JSON.parse(u)
-  }
-
-  function setSession(t: string, u: User) {
-    token.value = t
-    user.value = u
-    if (process.client) {
-      localStorage.setItem('booklib:token', t)
-      localStorage.setItem('booklib:user', JSON.stringify(u))
+  if (import.meta.client) {
+    const initialized = useState("auth_initialized", () => false);
+    if (!initialized.value) {
+      const storedToken = localStorage.getItem("agentic_auth_token");
+      const storedUser = localStorage.getItem("agentic_auth_user");
+      if (storedToken) {
+        token.value = storedToken;
+      }
+      if (storedUser) {
+        try {
+          user.value = JSON.parse(storedUser);
+        } catch {
+          user.value = null;
+        }
+      }
+      initialized.value = true;
     }
   }
 
-  function clearSession() {
-    token.value = null
-    user.value = null
-    if (process.client) {
-      localStorage.removeItem('booklib:token')
-      localStorage.removeItem('booklib:user')
+  function persist() {
+    if (!import.meta.client) return;
+
+    if (token.value) {
+      localStorage.setItem("agentic_auth_token", token.value);
+    } else {
+      localStorage.removeItem("agentic_auth_token");
+    }
+
+    if (user.value) {
+      localStorage.setItem("agentic_auth_user", JSON.stringify(user.value));
+    } else {
+      localStorage.removeItem("agentic_auth_user");
     }
   }
 
-  async function login(email: string, password: string) {
-    const config = useRuntimeConfig()
-    error.value = null
-    loading.value = true
+  async function register(params: {
+    email: string;
+    password: string;
+    display_name: string;
+  }) {
+    loading.value = true;
+    error.value = null;
     try {
-      const resp = await $fetch<LoginResp>(`${config.public.apiBase}/auth/login`, {
-        method: 'POST',
-        body: { email, password }
-      })
-      setSession(resp.token, resp.user)
-      return resp.user
-    } catch (e: any) {
-      error.value = e?.data?.error || e.message || 'Login failed'
-      throw e
+      const res = await $fetch<AuthResponse>(`${apiBase}/auth/register`, {
+        method: "POST",
+        body: params,
+      });
+
+      token.value = res.token;
+      user.value = res.user;
+      persist();
+      return res;
+    } catch (err: any) {
+      error.value =
+        err?.data?.error ||
+        err?.message ||
+        "Registration failed";
+      throw err;
     } finally {
-      loading.value = false
+      loading.value = false;
     }
   }
 
-  async function signup(email: string, password: string, display_name?: string) {
-    const config = useRuntimeConfig()
-    error.value = null
-    loading.value = true
+  async function login(params: { email: string; password: string }) {
+    loading.value = true;
+    error.value = null;
     try {
-      const resp = await $fetch<SignupResp>(`${config.public.apiBase}/auth/signup`, {
-        method: 'POST',
-        body: { email, password, display_name }
-      })
-      return resp
-    } catch (e: any) {
-      error.value = e?.data?.error || e.message || 'Signup failed'
-      throw e
+      const res = await $fetch<AuthResponse>(`${apiBase}/auth/login`, {
+        method: "POST",
+        body: params,
+      });
+
+      token.value = res.token;
+      user.value = res.user;
+      persist();
+      return res;
+    } catch (err: any) {
+      error.value =
+        err?.data?.error ||
+        err?.message ||
+        "Login failed";
+      throw err;
     } finally {
-      loading.value = false
-    }
-  }
-
-  async function fetchMe() {
-    if (!token.value) return null
-    const config = useRuntimeConfig()
-    try {
-      const resp = await $fetch<{ token: string; payload: any }>(`${config.public.apiBase}/auth/me`, {
-        headers: { Authorization: `Bearer ${token.value}` }
-      })
-      // optionally hydrate user from payload
-      return resp.payload
-    } catch (e: any) {
-      error.value = e?.data?.error || e.message
-      return null
+      loading.value = false;
     }
   }
 
   function logout() {
-    clearSession()
-    if (process.client) navigateTo('/')
+    token.value = null;
+    user.value = null;
+    persist();
   }
 
-  const isLoggedIn = computed(() => !!token.value)
-  const roles = computed(() => user.value?.roles || [])
-  const isAdmin = computed(() => roles.value.includes('admin'))
-
-  return { 
-    token, user, error, loading,
-    isLoggedIn, isAdmin, roles,
-    login, signup, fetchMe,
-    logout, setSession, clearSession 
-  }
+  return {
+    token,
+    user,
+    loggedIn,
+    loading,
+    error,
+    register,
+    login,
+    logout,
+  };
 }

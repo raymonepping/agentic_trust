@@ -9,6 +9,11 @@ import dotenv from "dotenv";
 import cors from "cors";
 import swaggerUi from "swagger-ui-express";
 
+// Auth routes
+import authRouter from "./routes/auth.js";
+import { requireUser } from "./middleware/requireUser.js";
+import debugRouter from "./routes/debug.js";
+
 // Application routes
 import missionsRouter from "./routes/missions.js";
 import aiRouter from "./routes/ai.js";
@@ -81,7 +86,9 @@ app.use((req, res, next) => {
 });
 
 // Core API routers
-app.use("/missions", missionsRouter);
+app.use("/auth", authRouter);
+app.use("/debug", debugRouter);
+app.use("/missions", requireUser, missionsRouter); // protect missions only // app.use("/missions", missionsRouter);
 app.use("/ai", aiRouter);
 app.use("/audit", auditRouter);
 

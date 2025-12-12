@@ -1,23 +1,32 @@
 // routes/mission.js
 import { Router } from "express";
 import logger from "../configurations/logger.js";
+import { requireUser } from "../middleware/requireUser.js";
 
 import {
   createMission,
   listMissions,
   getMissionById,
 } from "../services/missionService.js";
+
 import { generateMissionSummary } from "../services/ai/providers/summaryProvider.js";
 
 const router = Router();
 
+// All mission routes require an authenticated user
+router.use(requireUser);
+
 router.post("/", async (req, res, next) => {
   try {
-    const { title, body, owner, tags } = req.body;
+    const { title, body, tags } = req.body;
 
     if (!title || !body) {
       return res.status(400).json({ error: "title and body are required" });
     }
+
+    // Derive owner from JWT, not from body
+    const ownerId = req.user?.user_id || null;
+    const ownerName = req.user?.display_name || null;
 
     // Enrichment step: try to generate a summary from the plaintext body
     let summary = "";
@@ -38,12 +47,12 @@ router.post("/", async (req, res, next) => {
       );
     }
 
-    // Pass summary + status into the service
     const mission = await createMission({
       title,
       body,
-      owner,
       tags,
+      ownerId,
+      ownerName,
       summary,
       summaryStatus,
     });

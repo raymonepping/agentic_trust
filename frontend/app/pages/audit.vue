@@ -4,6 +4,12 @@ import { useApiClient } from '../composables/useApiClient'
 
 const { get } = useApiClient()
 
+type AuditInitiator = {
+  user_id: string | null
+  user_name: string | null
+  mission_id: string | null
+}
+
 type ParsedAuditEntry = {
   id: string
   raw: string
@@ -16,6 +22,7 @@ type ParsedAuditEntry = {
     role_name: string | null
     remote_address: string | null
     token_policies: string[] | null
+    initiator?: AuditInitiator | null
   } | null
 }
 
@@ -35,6 +42,7 @@ type ViewEntry = {
   rawObj: Record<string, any>
   leaseId?: string | null
   leaseShort?: string | null
+  initiator?: AuditInitiator | null
 }
 
 const entries = ref<ParsedAuditEntry[]>([])
@@ -130,6 +138,17 @@ const viewEntries = computed<ViewEntry[]>(() =>
         || e.id
         || `${rawObj.time || ''}-${rawObj.type || ''}`
 
+    // New: initiator derived from metadata or parsed payload
+    const meta = rawObj.auth?.metadata || e.parsed?.initiator || null
+    const initiator: AuditInitiator | null =
+      meta && (meta.user_id || meta.user_name || meta.mission_id)
+        ? {
+            user_id: meta.user_id ?? null,
+            user_name: meta.user_name ?? null,
+            mission_id: meta.mission_id ?? null
+          }
+        : null
+
     return {
       id,
       isRequest,
@@ -140,13 +159,14 @@ const viewEntries = computed<ViewEntry[]>(() =>
       who,
       shortPolicies,
       remoteAddress:
-    rawObj.request?.remote_address || e.parsed?.remote_address || null,
+        rawObj.request?.remote_address || e.parsed?.remote_address || null,
       remotePort: rawObj.request?.remote_port ?? null,
       ts: rawObj.time || e.parsed?.time || '',
       allowed,
       rawObj,
       leaseId,
-      leaseShort
+      leaseShort,
+      initiator
     }
   })
 )
@@ -377,6 +397,23 @@ onMounted(() => {
                 :title="entry.leaseId || ''"
               >
                 lease: {{ entry.leaseShort }}
+              </span>
+            </div>
+
+            <!-- Initiator line, only when metadata is present -->
+            <div
+              v-if="entry.initiator"
+              class="mt-1 text-[11px] text-emerald-400"
+            >
+              Initiator:
+              <span class="font-mono">
+                {{ entry.initiator.user_name || entry.initiator.user_id || 'unknown' }}
+              </span>
+              <span
+                v-if="entry.initiator.mission_id"
+                class="text-emerald-300"
+              >
+                · mission {{ entry.initiator.mission_id }}
               </span>
             </div>
 

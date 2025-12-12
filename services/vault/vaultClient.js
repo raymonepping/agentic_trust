@@ -158,3 +158,31 @@ export async function getKvSecret(path) {
   // KV v2: { data: { data: { ...your fields... }, metadata: { ... } } }
   return data?.data?.data || {};
 }
+
+export async function vaultRequest(method, path, body) {
+  const { VAULT_ADDR, VAULT_NAMESPACE } = getBaseConfig();
+  const token = await ensureClientToken();
+
+  const cleanPath = path.replace(/^\/+/, "");
+  const url = `${vaultBaseUrl(VAULT_ADDR)}/v1/${cleanPath}`;
+
+  const headers = buildHeaders(token, VAULT_NAMESPACE);
+
+  const options = {
+    method: method.toUpperCase(),
+    headers,
+  };
+
+  if (body !== undefined) {
+    options.body = JSON.stringify(body);
+  }
+
+  const res = await fetch(url, options);
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Vault request failed [${method} ${path}]: ${res.status} ${text}`);
+  }
+
+  return res.json();
+}

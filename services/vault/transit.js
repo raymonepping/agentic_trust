@@ -21,15 +21,16 @@ function vaultUrl(endpoint) {
   return `${vaultBaseUrl(VAULT_ADDR)}/v1/${TRANSIT_MOUNT}/${endpoint}`;
 }
 
-function buildHeaders() {
+function buildHeaders(tokenOverride) {
   const { VAULT_TOKEN, VAULT_NAMESPACE } = getConfig();
+  const token = tokenOverride || VAULT_TOKEN;
 
-  if (!VAULT_TOKEN) {
-    throw new Error("VAULT_TOKEN is not set");
+  if (!token) {
+    throw new Error("Vault token is not set");
   }
 
   const headers = {
-    "X-Vault-Token": VAULT_TOKEN,
+    "X-Vault-Token": token,
     "Content-Type": "application/json",
   };
 
@@ -40,12 +41,12 @@ function buildHeaders() {
   return headers;
 }
 
-export async function encryptText(plaintext) {
+export async function encryptText(plaintext, tokenOverride) {
   if (!plaintext) return "";
 
   const { KEY_NAME } = getConfig();
   const url = vaultUrl(`encrypt/${KEY_NAME}`);
-  const headers = buildHeaders();
+  const headers = buildHeaders(tokenOverride);
   const base64Plaintext = Buffer.from(plaintext, "utf8").toString("base64");
 
   const body = JSON.stringify({
@@ -73,12 +74,12 @@ export async function encryptText(plaintext) {
   return ciphertext;
 }
 
-export async function decryptText(ciphertext) {
+export async function decryptText(ciphertext, tokenOverride) {
   if (!ciphertext) return "";
 
   const { KEY_NAME } = getConfig();
   const url = vaultUrl(`decrypt/${KEY_NAME}`);
-  const headers = buildHeaders();
+  const headers = buildHeaders(tokenOverride);
 
   const body = JSON.stringify({
     ciphertext,

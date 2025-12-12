@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useMissions } from '../composables/useMissions'
+import { useAuth } from '../composables/useAuth'
 
 const {
   missions,
@@ -17,14 +18,19 @@ const {
   askQuestion,
   creating,
   createError,
-  createMission
+  createMission,
 } = useMissions()
+
+const { loggedIn, user } = useAuth()
+const router = useRouter()
 
 // simple local form state
 const newTitle = ref('')
-const newOwner = ref('')
 const newTags = ref('')
 const newBody = ref('')
+
+// NEW: filter state
+const showMineOnly = ref(false)
 
 // pagination state
 const pageSize = 5
@@ -32,13 +38,29 @@ const currentPage = ref(1)
 
 const hasSelection = computed(() => Boolean(selectedMission.value))
 
+// Filter missions based on current user
+const filteredMissions = computed(() => {
+  if (!showMineOnly.value) {
+    return missions.value
+  }
+
+  const currentUserId = user.value?.user_id
+  if (!currentUserId) {
+    // if user is not loaded yet, fall back to all
+    return missions.value
+  }
+
+  return missions.value.filter(m => m.owner_id === currentUserId)
+})
+
+// Pagination based on filtered list
 const totalPages = computed(() =>
-  Math.max(1, Math.ceil(missions.value.length / pageSize))
+  Math.max(1, Math.ceil(filteredMissions.value.length / pageSize)),
 )
 
 const paginatedMissions = computed(() => {
   const start = (currentPage.value - 1) * pageSize
-  return missions.value.slice(start, start + pageSize)
+  return filteredMissions.value.slice(start, start + pageSize)
 })
 
 // maps backend summary_status to a label
@@ -55,8 +77,8 @@ function summaryStatusColor(status?: string | null) {
   return 'gray'
 }
 
-// keep currentPage valid when missions change
-watch(missions, () => {
+// keep currentPage valid when filtered missions change
+watch(filteredMissions, () => {
   if (currentPage.value > totalPages.value) {
     currentPage.value = totalPages.value
   }
@@ -69,6 +91,27 @@ function goPrevPage() {
 function goNextPage() {
   if (currentPage.value < totalPages.value) currentPage.value += 1
 }
+
+// Guard: require login for this page
+onMounted(async () => {
+  if (!loggedIn.value) {
+    router.push('/auth')
+    return
+  }
+  if (missions.value.length === 0) {
+    await fetchMissions()
+  }
+})
+
+// If user logs out while on this page, move them to /auth
+watch(
+  () => loggedIn.value,
+  value => {
+    if (!value) {
+      router.push('/auth')
+    }
+  },
+)
 
 async function handleCreateMission() {
   if (!newTitle.value.trim() || !newBody.value.trim()) {
@@ -83,16 +126,12 @@ async function handleCreateMission() {
   await createMission({
     title: newTitle.value.trim(),
     body: newBody.value.trim(),
-    owner: newOwner.value.trim() || undefined,
-    tags
+    tags,
   })
 
-  // show newest missions (list is ordered DESC by created_at)
   currentPage.value = 1
 
-  // clear form after successful create
   newTitle.value = ''
-  newOwner.value = ''
   newTags.value = ''
   newBody.value = ''
 }
@@ -117,6 +156,30 @@ async function handleCreateMission() {
           </div>
 
           <div class="flex flex-col items-start gap-2 md:items-end">
+            <!-- Filter toggle -->
+            <div class="flex items-center gap-2 text-xs text-gray-400">
+              <span>Filter:</span>
+              <div class="inline-flex gap-1">
+                <UButton
+                  size="2xs"
+                  variant="ghost"
+                  :color="!showMineOnly ? 'primary' : 'gray'"
+                  @click="showMineOnly = false"
+                >
+                  All missions
+                </UButton>
+                <UButton
+                  size="2xs"
+                  variant="ghost"
+                  :color="showMineOnly ? 'primary' : 'gray'"
+                  :disabled="!user?.user_id"
+                  @click="showMineOnly = true"
+                >
+                  My missions
+                </UButton>
+              </div>
+            </div>
+
             <UButton
               size="sm"
               variant="solid"
@@ -127,7 +190,11 @@ async function handleCreateMission() {
               Reload missions
             </UButton>
             <p class="text-xs text-gray-500">
-              {{ missions.length }} mission(s) loaded from Couchbase
+              {{ filteredMissions.length }} mission(s)
+              <span v-if="showMineOnly && missions.length">
+                (of {{ missions.length }} total)
+              </span>
+              loaded from Couchbase
             </p>
           </div>
         </div>
@@ -171,7 +238,18 @@ async function handleCreateMission() {
               Create a new mission
             </h2>
 
-            <div class="grid gap-3 sm:grid-cols-2">
+            <p
+              v-if="user"
+              class="text-xs text-gray-500 mb-2"
+            >
+              Missions you create from this page are tagged to
+              <span class="font-mono text-gray-200">
+                {{ user.display_name }}
+              </span>
+              on the backend.
+            </p>
+
+            <div class="grid gap-3 sm:grid-cols-1">
               <UFormField
                 name="title"
                 label="Title"
@@ -179,17 +257,6 @@ async function handleCreateMission() {
                 <UInput
                   v-model="newTitle"
                   placeholder="Short mission title"
-                />
-              </UFormField>
-
-              <UFormField
-                name="owner"
-                label="Owner"
-                help="Optional"
-              >
-                <UInput
-                  v-model="newOwner"
-                  placeholder="Owner or responsible person"
                 />
               </UFormField>
             </div>
@@ -261,10 +328,16 @@ async function handleCreateMission() {
           </div>
 
           <div
-            v-else-if="missions.length === 0"
+            v-else-if="filteredMissions.length === 0"
             class="text-sm text-gray-400"
           >
-            No missions found yet. Create one above or seed Couchbase then reload.
+            <span v-if="showMineOnly">
+              You have not created any missions yet. Switch back to “All missions”
+              to see missions created by others, or create your first mission above.
+            </span>
+            <span v-else>
+              No missions found yet. Create one above or seed Couchbase then reload.
+            </span>
           </div>
 
           <div v-else>
@@ -283,6 +356,19 @@ async function handleCreateMission() {
                     <p class="text-sm font-medium text-gray-100">
                       {{ mission.title || mission.id }}
                     </p>
+
+                    <p class="mt-1 text-[11px] text-gray-500">
+                      Owner:
+                      <span class="font-mono text-gray-300">
+                        {{ mission.owner_name || mission.owner || 'unknown' }}
+                      </span>
+                      <span class="mx-1">·</span>
+                      Created:
+                      <span class="font-mono text-gray-300">
+                        {{ mission.created_at || 'n/a' }}
+                      </span>
+                    </p>
+
                     <p class="mt-1 text-xs text-gray-400 line-clamp-2">
                       {{ mission.summary || 'No summary available for this mission yet.' }}
                     </p>
@@ -296,13 +382,6 @@ async function handleCreateMission() {
                     >
                       Summary: {{ summaryStatusLabel(mission.summary_status) }}
                     </UBadge>
-
-                    <span
-                      v-if="mission.created_at"
-                      class="text-[11px] text-gray-500"
-                    >
-                      {{ mission.created_at }}
-                    </span>
                   </div>
                 </button>
               </li>
@@ -310,15 +389,15 @@ async function handleCreateMission() {
 
             <!-- Pager -->
             <div
-              v-if="missions.length > pageSize"
+              v-if="filteredMissions.length > pageSize"
               class="flex items-center justify-between px-3 py-2 text-xs text-gray-400"
             >
               <span>
                 Showing
                 {{ (currentPage - 1) * pageSize + 1 }}
                 –
-                {{ Math.min(currentPage * pageSize, missions.length) }}
-                of {{ missions.length }} missions
+                {{ Math.min(currentPage * pageSize, filteredMissions.length) }}
+                of {{ filteredMissions.length }} missions
               </span>
 
               <div class="flex gap-2">
@@ -391,6 +470,21 @@ async function handleCreateMission() {
                 <p class="font-semibold text-gray-100">
                   {{ selectedMission.title || selectedMission.id }}
                 </p>
+
+                <p class="text-xs text-gray-500">
+                  Created by
+                  <span class="font-mono text-gray-200">
+                    {{ selectedMission.owner_name || selectedMission.owner || 'unknown' }}
+                  </span>
+                  <span v-if="selectedMission.created_at">
+                    <span class="mx-1">·</span>
+                    Created:
+                    <span class="font-mono text-gray-200">
+                      {{ selectedMission.created_at }}
+                    </span>
+                  </span>
+                </p>
+
                 <p class="text-gray-400">
                   {{ selectedMission.summary || "No summary stored for this mission yet." }}
                 </p>
@@ -405,13 +499,6 @@ async function handleCreateMission() {
                     >
                       {{ summaryStatusLabel(selectedMission.summary_status) }}
                     </UBadge>
-                  </div>
-
-                  <div v-if="selectedMission.created_at">
-                    <span class="text-gray-500">Created:</span>
-                    <span class="ml-1 font-mono text-gray-200">
-                      {{ selectedMission.created_at }}
-                    </span>
                   </div>
                 </div>
               </div>

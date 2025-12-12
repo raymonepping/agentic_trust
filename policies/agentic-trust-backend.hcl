@@ -1,8 +1,9 @@
-# Existing DB creds + leases
+# Dynamic Couchbase creds for missions
 path "database/creds/couchbase-missions" {
   capabilities = ["read"]
 }
 
+# Lease management for those creds
 path "sys/leases/renew" {
   capabilities = ["update"]
 }
@@ -11,12 +12,12 @@ path "sys/leases/revoke" {
   capabilities = ["update"]
 }
 
-# NEW: KV v2 for JWT + pepper
+# KV v2: JWT secret and password pepper
 path "kv/data/app/agentic_auth" {
   capabilities = ["read"]
 }
 
-# NEW: Transit for mission and PII
+# Transit for mission and PII
 path "transit/encrypt/*" {
   capabilities = ["update"]
 }
@@ -24,22 +25,22 @@ path "transit/decrypt/*" {
   capabilities = ["update"]
 }
 
-# NEW: Transform encode for emails
+# Transform encode for emails
 path "transform/encode/agentic-email" {
   capabilities = ["update"]
 }
 
-# Optional: decode, if you want the main app to be able to recover emails
+# Optional: decode, only if this app should be able to recover real emails
 path "transform/decode/agentic-email" {
   capabilities = ["update"]
 }
 
-# NEW: Create child tokens with metadata
+# Create child tokens with metadata (for user/mission tracking later)
 path "auth/token/create" {
   capabilities = ["update"]
 }
 
-# Optional: wrapping
+# Optional: wrapping and unwrapping
 path "sys/wrapping/wrap" {
   capabilities = ["update"]
 }

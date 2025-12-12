@@ -2,16 +2,19 @@
 import { v4 as uuidv4 } from "uuid";
 import { getCollection, getCluster } from "./db/couchbaseClient.js";
 import { encryptText, decryptText } from "./vault/transit.js";
+import { withUserChildToken } from "./vault/agenticTokens.js";
 import logger from "../configurations/logger.js";
 
 /**
  * Create a mission and store it in Couchbase.
- * Optionally includes an AI-generated summary and status.
+ * Encryption is performed with a short lived child Vault token
+ * that carries user + mission metadata so audit logs can attribute requests.
  *
  * @param {Object} params
  * @param {string} params.title
  * @param {string} params.body
- * @param {string|null} [params.owner]
+ * @param {string|null} [params.ownerId]
+ * @param {string|null} [params.ownerName]
  * @param {string[]} [params.tags]
  * @param {string} [params.summary]
  * @param {string} [params.summaryStatus]
@@ -19,7 +22,8 @@ import logger from "../configurations/logger.js";
 export async function createMission({
   title,
   body,
-  owner,
+  ownerId,
+  ownerName,
   tags = [],
   summary,
   summaryStatus,
@@ -29,12 +33,22 @@ export async function createMission({
   const id = uuidv4();
   const createdAt = new Date().toISOString();
 
-  const encryptedBody = await encryptText(body);
+  // Encrypt using a child token that has user + mission metadata
+  const encryptedBody = await withUserChildToken(
+    {
+      userId: ownerId || null,
+      userName: ownerName || null,
+      missionId: id,
+    },
+    async childToken => encryptText(body, childToken),
+  );
 
   const doc = {
     id,
     title,
-    owner: owner || null,
+    owner: ownerName || null,
+    owner_id: ownerId || null,
+    owner_name: ownerName || null,
     tags,
     created_at: createdAt,
     encrypted_body: encryptedBody,
@@ -48,15 +62,19 @@ export async function createMission({
 
   logger.debug("Created mission", {
     id,
+    owner_id: ownerId,
+    owner_name: ownerName,
     hasSummary: Boolean(summary),
     summaryStatus: doc.summary_status,
   });
 
-  // What the API returns to the frontend
+  // API response
   return {
     id,
     title,
-    owner: owner || null,
+    owner: doc.owner,
+    owner_id: doc.owner_id,
+    owner_name: doc.owner_name,
     tags,
     created_at: createdAt,
     summary: doc.summary,
@@ -98,6 +116,5 @@ export async function getMissionById(id) {
   const { value } = await collection.get(id);
   const decryptedBody = await decryptText(value.encrypted_body);
 
-  // value already includes summary / summary_status if present
   return { ...value, body: decryptedBody };
 }

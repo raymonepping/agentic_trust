@@ -39,6 +39,10 @@ temp/
 .env.*.local
 .secret.env
 
+# Local Vault AppRole helper + secrets
+scripts/refresh_approle_secrets.sh
+scripts/.secret.env
+
 # IDE and editor files
 .vscode/
 .idea/
